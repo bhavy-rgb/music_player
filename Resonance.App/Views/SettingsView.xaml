@@ -1,0 +1,26 @@
+<UserControl x:Class="Resonance.App.Views.SettingsView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel>
+    <TextBlock Text="Settings" Style="{DynamicResource Heading}"/>
+    <TextBlock Text="Appearance" FontSize="{DynamicResource TitleSize}" Margin="{DynamicResource InnerPadding}"/>
+    <ComboBox ItemsSource="{Binding Themes}" SelectedItem="{Binding Theme}" AutomationProperties.Name="Theme"/>
+    <CheckBox Content="Reduce motion" IsChecked="{Binding ReducedMotion}"/>
+    <Button Content="Save appearance" Command="{Binding SaveAppearanceCommandCommand}" HorizontalAlignment="Left"/>
+    <TextBlock Text="Library folders" FontSize="{DynamicResource TitleSize}" Margin="{DynamicResource InnerPadding}"/>
+    <ListBox ItemsSource="{Binding Library.Folders}" SelectedItem="{Binding Library.SelectedFolder}" MaxHeight="{DynamicResource QueueHeight}" AutomationProperties.Name="Library folders"/>
+    <WrapPanel><Button Content="Add folder" Command="{Binding Library.AddFolderCommand}"/><Button Content="Remove folder" Command="{Binding Library.RemoveFolderCommand}"/><Button Content="Rescan" Command="{Binding Library.RescanCommand}"/></WrapPanel>
+    <TextBlock Text="Removing a folder stops future scans; it keeps indexed tracks and never deletes audio files." Style="{DynamicResource Caption}" TextWrapping="Wrap"/>
+    <TextBlock Text="Provider credentials" FontSize="{DynamicResource TitleSize}" Margin="{DynamicResource InnerPadding}"/>
+    <TextBlock Text="Secrets are stored locally, encrypted per Windows user. Blank fields keep existing values; entered values replace them. Spotify client ID is public." Style="{DynamicResource MutedText}" TextWrapping="Wrap"/>
+    <TextBlock Text="Spotify client ID"/><TextBox Text="{Binding SpotifyClientId, UpdateSourceTrigger=PropertyChanged}" MaxLength="256" AutomationProperties.Name="Spotify client ID"/>
+    <WrapPanel><Button Content="Connect Spotify" Command="{Binding ConnectSpotifyCommand}"/><Button Content="Cancel connection" Command="{Binding ConnectSpotifyCancelCommand}"/><Button Content="Disconnect" Command="{Binding DisconnectSpotifyCommand}"/></WrapPanel>
+    <TextBlock Text="YouTube Data API v3 key"/><PasswordBox x:Name="YouTube" MaxLength="8192" AutomationProperties.Name="YouTube API key"/>
+    <TextBlock Text="Apple Music developer token"/><PasswordBox x:Name="Apple" MaxLength="8192" AutomationProperties.Name="Apple developer token"/>
+    <TextBlock Text="SoundCloud access token"/><PasswordBox x:Name="SoundCloud" MaxLength="8192" AutomationProperties.Name="SoundCloud access token"/>
+    <CheckBox x:Name="ClearSecrets" Content="Clear saved YouTube, Apple and SoundCloud secrets before saving"/>
+    <Button Content="Save provider settings" Click="SaveCredentials" HorizontalAlignment="Left" Style="{DynamicResource PrimaryButton}"/>
+    <TextBlock Text="{Binding CredentialStatus}" Style="{DynamicResource Caption}" TextWrapping="Wrap"/>
+    <TextBlock Text="About and privacy" FontSize="{DynamicResource TitleSize}" Margin="{DynamicResource InnerPadding}"/>
+    <TextBlock Text="Resonance 1.0 · Local music player · MIT license. Music stays on your PC. There is no telemetry, account service or audio download. Provider imports send playlist URLs and credentials to their official APIs; a remote generic playlist contacts the HTTPS host you choose. Opening a source link launches your browser or Spotify. Album art is read from local tags, not remote URLs." TextWrapping="Wrap"/>
+    <TextBlock Text="Library paths, playlists and session settings are stored in an unencrypted SQLite database under %LOCALAPPDATA%/Resonance. Credentials use Windows DPAPI and cannot be moved to another Windows account. Close Resonance before backing up or deleting this folder. See README for setup and security limits." TextWrapping="Wrap" Margin="{DynamicResource InnerPadding}" Style="{DynamicResource MutedText}"/>
+  </StackPanel></ScrollViewer>
+</UserControl>

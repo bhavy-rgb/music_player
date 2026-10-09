@@ -40,6 +40,8 @@ public partial class ImportViewModel(IEnumerable<IPlaylistImporter> importers, I
         {
             var importer = importers.FirstOrDefault(i => i.CanHandle(Input.Trim())) ?? throw new InvalidDataException("That URL is not supported. Use an official provider URL, a .m3u/.pls link, or paste Artist - Title lines.");
             result = await importer.ResolveAsync(Input, ct);
+            InputValidation.Items(result.Items);
+            InputValidation.Text(result.Name, 256);
             Name = Existing?.Name ?? result.Name; Provider = result.Provider.ToUpperInvariant();
             var library = await store.GetTracksAsync();
             // Only read files explicitly named by a local playlist; never scan unrelated directories.
@@ -64,6 +66,7 @@ public partial class ImportViewModel(IEnumerable<IPlaylistImporter> importers, I
             Resolved = true;
         }
         catch (OperationCanceledException) { Message = "Import cancelled. No playlist was saved."; }
+        catch (HttpRequestException) { Message = "The provider could not be reached. Check your connection and credentials."; }
         catch (Exception e) { Message = e.Message; }
         finally { Busy = false; }
     }
@@ -79,6 +82,7 @@ public partial class ImportViewModel(IEnumerable<IPlaylistImporter> importers, I
             var playlist = new Playlist { Id = Existing?.Id ?? 0, CreatedAt = Existing?.CreatedAt ?? DateTimeOffset.UtcNow, Name = Name.Trim(), SourceProvider = result.Provider, SourceUrl = result.SourceUrl, LastSyncedAt = DateTimeOffset.UtcNow, Items = Rows.Where(r => r.Included).Select(r => r.Item).ToArray() };
             var id = await store.SavePlaylistAsync(playlist); SavedPlaylist = playlist with { Id = id }; Saved?.Invoke(this, EventArgs.Empty);
         }
+        catch (HttpRequestException) { Message = "The provider could not be reached. Check your connection and credentials."; }
         catch (Exception e) { Message = e.Message; }
         finally { Busy = false; }
     }
