@@ -1,0 +1,62 @@
+<Window x:Class="Resonance.App.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="clr-namespace:Resonance.App.ViewModels" xmlns:views="clr-namespace:Resonance.App.Views"
+  Title="Resonance" Width="{DynamicResource WindowWidth}" Height="{DynamicResource WindowHeight}" MinWidth="{DynamicResource MinimumWindowWidth}" MinHeight="{DynamicResource MinimumWindowHeight}" Closing="OnClosing">
+  <Window.Resources>
+    <DataTemplate DataType="{x:Type vm:LibraryViewModel}"><views:LibraryView/></DataTemplate>
+    <DataTemplate DataType="{x:Type vm:PlaylistsViewModel}"><views:PlaylistDetailView/></DataTemplate>
+    <DataTemplate DataType="{x:Type vm:SettingsViewModel}"><views:SettingsView/></DataTemplate>
+  </Window.Resources>
+  <Grid><Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="{DynamicResource SidebarWidth}"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <Border Background="{DynamicResource SidebarBrush}" Padding="{DynamicResource CardPadding}"><DockPanel>
+        <TextBlock DockPanel.Dock="Top" Text="Resonance" FontSize="{DynamicResource TitleSize}" FontWeight="SemiBold" Margin="{DynamicResource InnerPadding}"/>
+        <TextBlock DockPanel.Dock="Bottom" Text="Your music. On this PC." Style="{DynamicResource Caption}" TextWrapping="Wrap"/>
+        <StackPanel>
+          <Button Content="_Library" Command="{Binding NavigateCommand}" CommandParameter="Library" HorizontalContentAlignment="Left" Style="{DynamicResource QuietButton}"/>
+          <Button Content="_Playlists" Command="{Binding NavigateCommand}" CommandParameter="Playlists" HorizontalContentAlignment="Left" Style="{DynamicResource QuietButton}"/>
+          <Button Content="_Import" Command="{Binding ImportCommand}" HorizontalContentAlignment="Left" Style="{DynamicResource QuietButton}"/>
+          <Button Content="_Settings" Command="{Binding NavigateCommand}" CommandParameter="Settings" HorizontalContentAlignment="Left" Style="{DynamicResource QuietButton}"/>
+        </StackPanel>
+      </DockPanel></Border>
+      <ContentControl Grid.Column="1" Content="{Binding Content}" Margin="{DynamicResource PagePadding}"/>
+    </Grid>
+    <Border Grid.Row="1" Background="{DynamicResource RaisedBrush}" Padding="{DynamicResource InnerPadding}" Visibility="{Binding Notifications.HasMessage, Converter={StaticResource BoolVisibility}}">
+      <DockPanel><Button DockPanel.Dock="Right" Content="Dismiss" Command="{Binding Notifications.DismissCommand}" Style="{DynamicResource QuietButton}"/>
+        <TextBlock Text="{Binding Notifications.Message}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/></DockPanel>
+    </Border>
+    <Border Grid.Row="2" Background="{DynamicResource SurfaceBrush}" Padding="{DynamicResource CardPadding}" DataContext="{Binding Player}">
+      <StackPanel>
+        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="2*"/><ColumnDefinition Width="3*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+          <Border Width="{DynamicResource ArtSize}" Height="{DynamicResource ArtSize}" Background="{DynamicResource RaisedBrush}" CornerRadius="{DynamicResource SmallRadius}" BorderBrush="{DynamicResource ArtOutlineBrush}" BorderThickness="1">
+            <Grid><Path Data="{DynamicResource MusicIcon}" Style="{DynamicResource Icon}" Stroke="{DynamicResource SecondaryBrush}"/><Image Source="{Binding Current.ArtPath}" Stretch="UniformToFill" AutomationProperties.Name="Current album artwork"/></Grid>
+          </Border>
+          <StackPanel Grid.Column="1" Margin="{DynamicResource InnerPadding}" VerticalAlignment="Center">
+            <TextBlock Text="{Binding Current.Title, TargetNullValue=Nothing playing}" FontSize="{DynamicResource LabelSize}" TextTrimming="CharacterEllipsis"/>
+            <TextBlock Text="{Binding Current.Artist}" Style="{DynamicResource MutedText}" TextTrimming="CharacterEllipsis"/>
+          </StackPanel>
+          <StackPanel Grid.Column="2">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+              <Button Command="{Binding PreviousCommand}" ToolTip="Previous" AutomationProperties.Name="Previous track"><Path Data="{DynamicResource PreviousIcon}" Style="{DynamicResource Icon}"/></Button>
+              <Button Command="{Binding PlayPauseCommand}" ToolTip="Play / pause" AutomationProperties.Name="Play or pause" Style="{DynamicResource PrimaryButton}">
+                <Path><Path.Style><Style TargetType="Path" BasedOn="{StaticResource Icon}"><Setter Property="Data" Value="{DynamicResource PlayIcon}"/><Style.Triggers><DataTrigger Binding="{Binding IsPlaying}" Value="True"><Setter Property="Data" Value="{DynamicResource PauseIcon}"/></DataTrigger></Style.Triggers></Style></Path.Style></Path>
+              </Button>
+              <Button Command="{Binding NextCommand}" ToolTip="Next" AutomationProperties.Name="Next track"><Path Data="{DynamicResource NextIcon}" Style="{DynamicResource Icon}"/></Button>
+              <Button Command="{Binding StopCommand}" ToolTip="Stop" AutomationProperties.Name="Stop"><Path Data="{DynamicResource StopIcon}" Style="{DynamicResource Icon}"/></Button>
+            </StackPanel>
+            <DockPanel><TextBlock DockPanel.Dock="Left" Text="{Binding PositionLabel}" Style="{DynamicResource Caption}"/><TextBlock DockPanel.Dock="Right" Text="{Binding DurationLabel}" Style="{DynamicResource Caption}"/>
+              <Slider x:Name="SeekSlider" Minimum="0" Maximum="{Binding Duration}" Value="{Binding Position, Mode=OneWay}" PreviewMouseLeftButtonDown="SeekStarted" PreviewMouseLeftButtonUp="SeekFinished" PreviewKeyDown="SeekKeyDown" PreviewKeyUp="SeekKeyUp" LostMouseCapture="SeekCaptureLost" AutomationProperties.Name="Playback position"/>
+            </DockPanel>
+          </StackPanel>
+          <StackPanel Grid.Column="3" Margin="{DynamicResource InnerPadding}">
+            <Button Content="{Binding Mode}" Command="{Binding CycleModeCommand}" ToolTip="Cycle sequential, repeat one, repeat all, shuffle" AutomationProperties.Name="Playback mode" Style="{DynamicResource QuietButton}"/>
+            <Slider Minimum="0" Maximum="1" Value="{Binding Volume}" Width="{DynamicResource VolumeSize}" AutomationProperties.Name="Volume" ToolTip="Volume"/>
+          </StackPanel>
+        </Grid>
+        <Expander Header="Queue" Margin="{DynamicResource InnerPadding}">
+          <DockPanel MaxHeight="{DynamicResource QueueHeight}"><Button DockPanel.Dock="Bottom" Content="Play selected" Command="{Binding PlayQueuedCommand}"/>
+            <ListBox ItemsSource="{Binding Queue}" SelectedItem="{Binding SelectedQueueTrack}" AutomationProperties.Name="Playback queue"><ListBox.ItemTemplate><DataTemplate><TextBlock><Run Text="{Binding Title}"/><Run Text=" — "/><Run Text="{Binding Artist}"/></TextBlock></DataTemplate></ListBox.ItemTemplate></ListBox>
+          </DockPanel>
+        </Expander>
+      </StackPanel>
+    </Border>
+  </Grid>
+</Window>

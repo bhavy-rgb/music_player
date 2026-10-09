@@ -1,0 +1,13 @@
+<UserControl x:Class="Resonance.App.Views.PlaylistDetailView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <DockPanel>
+    <TextBlock DockPanel.Dock="Top" Text="Playlists" Style="{DynamicResource Heading}"/>
+    <TextBlock DockPanel.Dock="Top" Text="Import a playlist to match it with music on this PC. Unmatched entries remain links." Style="{DynamicResource Caption}" TextWrapping="Wrap" Margin="{DynamicResource InnerPadding}"/>
+    <WrapPanel DockPanel.Dock="Top"><Button Content="Play local matches" Command="{Binding PlayCommand}" Style="{DynamicResource PrimaryButton}"/><Button Content="Re-sync source" Command="{Binding DataContext.ResyncCommand, RelativeSource={RelativeSource AncestorType=Window}}"/><Button Content="Delete playlist" Command="{Binding DeleteCommand}"/><Button Content="Open selected link" Command="{Binding OpenLinkCommand}"/></WrapPanel>
+    <ListBox DockPanel.Dock="Left" Width="{DynamicResource PlaylistListSize}" ItemsSource="{Binding Playlists}" SelectedItem="{Binding Selected}" AutomationProperties.Name="Saved playlists">
+      <ListBox.ItemTemplate><DataTemplate><StackPanel><TextBlock Text="{Binding Name}" TextWrapping="Wrap"/><TextBlock Text="{Binding SourceProvider}" Style="{DynamicResource Caption}"/></StackPanel></DataTemplate></ListBox.ItemTemplate>
+    </ListBox>
+    <DockPanel Margin="{DynamicResource InnerPadding}"><TextBlock DockPanel.Dock="Top" Text="{Binding Selected.Name, TargetNullValue=No playlists yet — use Import to get started.}" FontSize="{DynamicResource TitleSize}" TextWrapping="Wrap"/>
+      <ListBox ItemsSource="{Binding Selected.Items}" SelectedItem="{Binding SelectedItem}" AutomationProperties.Name="Playlist tracks"><ListBox.ItemTemplate><DataTemplate><DockPanel><TextBlock DockPanel.Dock="Right" Text="{Binding MatchStatus}" Style="{DynamicResource Caption}"/><StackPanel><TextBlock Text="{Binding ExternalTitle}" TextTrimming="CharacterEllipsis"/><TextBlock Text="{Binding ExternalArtist}" Style="{DynamicResource MutedText}" TextTrimming="CharacterEllipsis"/></StackPanel></DockPanel></DataTemplate></ListBox.ItemTemplate></ListBox>
+    </DockPanel>
+  </DockPanel>
+</UserControl>

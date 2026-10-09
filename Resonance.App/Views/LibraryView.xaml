@@ -1,0 +1,21 @@
+<UserControl x:Class="Resonance.App.Views.LibraryView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+    <DockPanel><TextBlock Text="Library" Style="{DynamicResource Heading}"/><StackPanel Orientation="Horizontal" HorizontalAlignment="Right"><Button Content="Add folder" Command="{Binding AddFolderCommand}" Style="{DynamicResource PrimaryButton}"/><Button Content="Rescan" Command="{Binding RescanCommand}"/><Button Content="Cancel scan" Command="{Binding CancelScanCommand}" Visibility="{Binding Busy, Converter={StaticResource BoolVisibility}}"/></StackPanel></DockPanel>
+    <DockPanel Grid.Row="1" Margin="{DynamicResource InnerPadding}"><ComboBox DockPanel.Dock="Right" ItemsSource="{Binding Sorts}" SelectedItem="{Binding Sort}" Width="{DynamicResource SortSize}" AutomationProperties.Name="Sort library"/><Button DockPanel.Dock="Right" Content="Play selected" Command="{Binding PlayCommand}"/>
+      <TextBox Text="{Binding Search, UpdateSourceTrigger=PropertyChanged}" MaxLength="256" AutomationProperties.Name="Search title artist or album" ToolTip="Search title, artist or album"/>
+    </DockPanel>
+    <StackPanel Grid.Row="2"><TextBlock Text="{Binding Status}" Style="{DynamicResource Caption}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/><ProgressBar Height="{DynamicResource ProgressHeight}" IsIndeterminate="True" Visibility="{Binding Busy, Converter={StaticResource BoolVisibility}}"/>
+      <Expander Header="Library folders"><DockPanel MaxHeight="{DynamicResource QueueHeight}"><Button DockPanel.Dock="Bottom" Content="Remove selected folder" Command="{Binding RemoveFolderCommand}" ToolTip="Stops future scans; keeps indexed tracks and never deletes audio"/><ListBox ItemsSource="{Binding Folders}" SelectedItem="{Binding SelectedFolder}" AutomationProperties.Name="Library folders"/></DockPanel></Expander>
+    </StackPanel>
+    <ListBox Grid.Row="3" ItemsSource="{Binding View}" SelectedItem="{Binding SelectedTrack}" MouseDoubleClick="PlaySelection" AutomationProperties.Name="Music library">
+      <ListBox.InputBindings><KeyBinding Key="Enter" Command="{Binding PlayCommand}"/></ListBox.InputBindings>
+      <ListBox.ItemTemplate><DataTemplate><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="{DynamicResource ArtColumn}"/><ColumnDefinition Width="2*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <Border Width="{DynamicResource ControlHeight}" Height="{DynamicResource ControlHeight}" Background="{DynamicResource RaisedBrush}" CornerRadius="{DynamicResource SmallRadius}"><Image Source="{Binding ArtPath}" Stretch="UniformToFill"/></Border>
+        <TextBlock Grid.Column="1" Text="{Binding Title}" TextTrimming="CharacterEllipsis" Margin="{DynamicResource InnerPadding}"/>
+        <TextBlock Grid.Column="2" Text="{Binding Artist}" TextTrimming="CharacterEllipsis" Style="{DynamicResource MutedText}" Margin="{DynamicResource InnerPadding}"/>
+        <TextBlock Grid.Column="3" Text="{Binding Album}" TextTrimming="CharacterEllipsis" Style="{DynamicResource MutedText}" Margin="{DynamicResource InnerPadding}"/>
+        <TextBlock Grid.Column="4" Text="{Binding DurationLabel}" Style="{DynamicResource Caption}"/>
+      </Grid></DataTemplate></ListBox.ItemTemplate>
+    </ListBox>
+  </Grid>
+</UserControl>
