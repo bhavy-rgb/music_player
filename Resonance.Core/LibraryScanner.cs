@@ -17,7 +17,14 @@ public sealed class LibraryScanner(string artDirectory) : ILibraryScanner
             foreach (var path in paths.Distinct(StringComparer.OrdinalIgnoreCase))
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                try { cache.TryGetValue(path, out var old); tracks.Add(ReadTrack(path, new FileInfo(path), old)); }
+                try
+                {
+                    InputValidation.AudioPath(path);
+                    cache.TryGetValue(path, out var old);
+                    var info = new FileInfo(path);
+                    tracks.Add(old is not null && old.FileSize == info.Length && old.ModifiedTicks == info.LastWriteTimeUtc.Ticks
+                        ? old : ReadTrack(path, info, old));
+                }
                 catch (Exception e) when (e is not OperationCanceledException) { errors.Add($"{path}: {e.Message}"); }
             }
             return new ScanResult(tracks, new HashSet<string>(), new HashSet<string>(), errors);
@@ -39,6 +46,7 @@ public sealed class LibraryScanner(string artDirectory) : ILibraryScanner
             if (!visited.Add(folder)) continue;
             try
             {
+                if ((File.GetAttributes(folder) & FileAttributes.ReparsePoint) != 0) continue;
                 // Complete enumeration before treating a directory as authoritative for deletions.
                 var files = Directory.GetFiles(folder);
                 folders.Add(folder);
@@ -48,6 +56,7 @@ public sealed class LibraryScanner(string artDirectory) : ILibraryScanner
                     if (!seen.Add(path)) continue;
                     try
                     {
+                        InputValidation.AudioPath(path);
                         var info = new FileInfo(path);
                         cached.TryGetValue(path, out var old);
                         if (old is not null && old.ModifiedTicks == info.LastWriteTimeUtc.Ticks && old.FileSize == info.Length)
@@ -70,6 +79,7 @@ public sealed class LibraryScanner(string artDirectory) : ILibraryScanner
     }
     private Track ReadTrack(string path, FileInfo info, Track? old)
     {
+        InputValidation.AudioPath(path);
         using var file = TagLib.File.Create(path);
         var tag = file.Tag;
         string? art = null;
@@ -80,6 +90,8 @@ public sealed class LibraryScanner(string artDirectory) : ILibraryScanner
             art = Path.Combine(artDirectory, key + ".img");
             if (!File.Exists(art)) File.WriteAllBytes(art, bytes);
         }
+        foreach (var value in new[] { tag.Title ?? "", tag.Album ?? "", string.Join(", ", tag.Performers), string.Join(", ", tag.AlbumArtists), string.Join(", ", tag.Genres) })
+            InputValidation.Text(value);
         return new Track {
             Id = old?.Id ?? 0, FilePath = path, Title = string.IsNullOrWhiteSpace(tag.Title) ? Path.GetFileNameWithoutExtension(path) : tag.Title,
             Artist = tag.Performers.Length == 0 ? "Unknown artist" : string.Join(", ", tag.Performers),

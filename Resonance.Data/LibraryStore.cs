@@ -90,7 +90,11 @@ public sealed class LibraryStore(string databasePath) : ILibraryStore
             using var r = cmd.ExecuteReader(); var items = new List<PlaylistItem>();
             while (r.Read())
             {
-                var item = JsonSerializer.Deserialize<PlaylistItem>(r.GetString(3)) ?? new();
+                var snapshot = r.GetString(3);
+                InputValidation.Text(snapshot, 65536);
+                var item = JsonSerializer.Deserialize<PlaylistItem>(snapshot, InputValidation.JsonOptions)
+                    ?? throw new InvalidDataException("A saved playlist entry is invalid.");
+                InputValidation.Item(item);
                 long? trackId = r.IsDBNull(2) ? null : r.GetInt64(2);
                 items.Add(item with { Id = r.GetInt64(0), PlaylistId = playlists[i].Id, Position = r.GetInt32(1), TrackId = trackId, MatchStatus = trackId.HasValue ? MatchStatus.Local : item.PreviewUrl is null ? MatchStatus.Link : MatchStatus.Preview });
             }
@@ -99,6 +103,10 @@ public sealed class LibraryStore(string databasePath) : ILibraryStore
         return playlists;
     });
     public Task<long> SavePlaylistAsync(Playlist playlist) => WithDatabase(db => {
+        InputValidation.Text(playlist.Name, 256); InputValidation.Text(playlist.SourceProvider, 64);
+        if (string.IsNullOrWhiteSpace(playlist.Name)) throw new InvalidDataException("Give the playlist a name.");
+        if (playlist.SourceUrl is not null) InputValidation.Text(playlist.SourceUrl, 8192);
+        InputValidation.Items(playlist.Items);
         using var tx = db.BeginTransaction();
         var id = playlist.Id;
         if (id == 0)
@@ -121,12 +129,15 @@ public sealed class LibraryStore(string databasePath) : ILibraryStore
         tx.Commit(); return id;
     });
     public Task DeletePlaylistAsync(long id) => WithDatabase(db => {
-        using var cmd = Command(db, "DELETE FROM Playlist WHERE Id=$id", null, ("$id", id)); return cmd.ExecuteNonQuery();
+        using var tx = db.BeginTransaction();
+        using var cmd = Command(db, "DELETE FROM Playlist WHERE Id=$id", tx, ("$id", id)); var count = cmd.ExecuteNonQuery(); tx.Commit(); return count;
     });
     public Task<string?> GetSettingAsync(string key) => WithDatabase(db => {
         using var cmd = Command(db, "SELECT Value FROM Setting WHERE Key=$key", null, ("$key", key)); return cmd.ExecuteScalar() as string;
     });
     public Task SetSettingAsync(string key, string value) => WithDatabase(db => {
-        using var cmd = Command(db, "INSERT INTO Setting(Key,Value) VALUES($key,$value) ON CONFLICT(Key) DO UPDATE SET Value=excluded.Value", null, ("$key", key), ("$value", value)); return cmd.ExecuteNonQuery();
+        InputValidation.Text(key, 128); InputValidation.Text(value, InputValidation.MaxBytes);
+        using var tx = db.BeginTransaction();
+        using var cmd = Command(db, "INSERT INTO Setting(Key,Value) VALUES($key,$value) ON CONFLICT(Key) DO UPDATE SET Value=excluded.Value", tx, ("$key", key), ("$value", value)); var count = cmd.ExecuteNonQuery(); tx.Commit(); return count;
     });
 }
