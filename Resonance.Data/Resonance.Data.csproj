@@ -1,0 +1,1 @@
+<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup><ItemGroup><ProjectReference Include="../Resonance.Core/Resonance.Core.csproj"/><PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.24"/></ItemGroup></Project>
