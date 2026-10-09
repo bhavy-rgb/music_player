@@ -13,9 +13,16 @@ public interface IProviderCredentials
 }
 public static class ProviderUrls
 {
-    public static bool IsHost(string input, params string[] hosts) => Uri.TryCreate(input, UriKind.Absolute, out var uri) && uri.Scheme == "https" && hosts.Contains(uri.Host, StringComparer.OrdinalIgnoreCase);
+    public static bool IsHost(string input, params string[] hosts) => Uri.TryCreate(input, UriKind.Absolute, out var uri) && uri.Scheme == "https" && uri.IsDefaultPort && uri.UserInfo.Length == 0 && hosts.Contains(uri.Host, StringComparer.OrdinalIgnoreCase);
     public static string? Query(Uri uri, string key) => uri.Query.TrimStart('?').Split('&').Select(p => p.Split('=', 2)).Where(p => p.Length == 2 && p[0] == key).Select(p => Uri.UnescapeDataString(p[1])).FirstOrDefault();
-    public static string Text(this JsonElement element, string key, string fallback = "") => element.ValueKind == JsonValueKind.Object && element.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() ?? fallback : fallback;
+    public static string Text(this JsonElement element, string key, string fallback = "")
+    {
+        if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty(key, out var value) || value.ValueKind == JsonValueKind.Null) return fallback;
+        if (value.ValueKind != JsonValueKind.String) throw new InvalidDataException("Provider returned an unexpected text field.");
+        var text = value.GetString()!;
+        InputValidation.Text(text, 8192);
+        return text;
+    }
     public static JsonElement Child(this JsonElement element, string key) => element.ValueKind == JsonValueKind.Object && element.TryGetProperty(key, out var value) ? value : default;
     public static IEnumerable<JsonElement> Array(this JsonElement element) => element.ValueKind == JsonValueKind.Array ? element.EnumerateArray() : [];
     public static long Number(this JsonElement element, string key) => element.Child(key).TryNumber();
@@ -25,7 +32,7 @@ public sealed class ProviderApi(HttpClient http)
 {
     public async Task<JsonElement> GetAsync(string url, string? token, CancellationToken ct, string scheme = "Bearer")
     {
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme != "https" || !new[] { "api.spotify.com", "www.googleapis.com", "api.music.apple.com", "api.soundcloud.com" }.Contains(uri.Host))
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme != "https" || !uri.IsDefaultPort || uri.UserInfo.Length > 0 || !new[] { "api.spotify.com", "www.googleapis.com", "api.music.apple.com", "api.soundcloud.com" }.Contains(uri.Host))
             throw new InvalidDataException("The provider returned an unexpected API address.");
         for (int attempt = 0; ; attempt++)
         {
@@ -40,7 +47,9 @@ public sealed class ProviderApi(HttpClient http)
             if (!response.IsSuccessStatusCode)
                 throw new InvalidOperationException($"Provider API returned {(int)response.StatusCode} ({response.ReasonPhrase}). Check credentials, developer-account access and whether the playlist is public. No audio has been downloaded.");
             await using var body = await response.Content.ReadAsStreamAsync(ct);
-            using var document = await JsonDocument.ParseAsync(body, cancellationToken: ct);
+            using var document = JsonDocument.Parse(await InputValidation.ReadBoundedAsync(body, ct), new JsonDocumentOptions { MaxDepth = 32 });
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+                throw new InvalidDataException("Provider returned an unexpected response shape.");
             return document.RootElement.Clone();
         }
     }
@@ -73,13 +82,16 @@ public sealed class SpotifyImporter(ProviderApi api, IProviderCredentials creden
                     var item = ToItem(track);
                     if (type == "album") item = item with { ExternalAlbum = root.Text("name"), ArtUrl = root.Child("images").Array().FirstOrDefault().Text("url") };
                     items.Add(item);
+                    if (items.Count > InputValidation.MaxItems) throw new InvalidDataException("Playlist pagination limit reached.");
                 }
                 var next = page.Text("next");
                 if (string.IsNullOrEmpty(next)) break;
-                if (!visited.Add(next) || items.Count > 20000) throw new InvalidDataException("Playlist pagination limit reached.");
+                if (!visited.Add(next) || items.Count >= 20000 || visited.Count >= 400) throw new InvalidDataException("Playlist pagination limit reached.");
+                if (!ProviderUrls.IsHost(next, "api.spotify.com")) throw new InvalidDataException("Unexpected Spotify pagination host.");
                 page = await api.GetAsync(next, token, cancellationToken);
             }
         }
+        InputValidation.Items(items);
         return new(root.Text("name", "Spotify playlist"), "Spotify", input, items, "Metadata only. Matched files play locally; unmatched tracks open in Spotify. Previews are available only when supplied by Spotify.");
     }
     private static PlaylistItem ToItem(JsonElement t)
@@ -111,8 +123,9 @@ public sealed class YouTubeImporter(ProviderApi api, IProviderCredentials creden
                 var split = title.Split(" - ", 2); if (split.Length == 2) { artist = split[0]; title = split[1]; }
                 items.Add(new() { ExternalTitle = title, ExternalArtist = artist, ExternalUrl = "https://www.youtube.com/watch?v=" + Uri.EscapeDataString(video), ArtUrl = s.Child("thumbnails").Child("medium").Text("url") });
             }
+            InputValidation.Items(items);
             pageToken = root.Text("nextPageToken");
-            if (pageToken.Length > 0 && (!visited.Add(pageToken) || items.Count > 20000)) throw new InvalidDataException("Playlist pagination limit reached.");
+            if (pageToken.Length > 0 && (!visited.Add(pageToken) || items.Count >= 20000 || visited.Count >= 400)) throw new InvalidDataException("Playlist pagination limit reached.");
         } while (pageToken.Length > 0);
         return new(name, "YouTube", input, items, "Reference playlist only. YouTube audio is never downloaded or played inside Resonance.");
     }
@@ -135,9 +148,12 @@ public sealed class AppleMusicImporter(ProviderApi api, IProviderCredentials cre
                 var a = t.Child("attributes");
                 items.Add(new() { ExternalTitle = a.Text("name"), ExternalArtist = a.Text("artistName"), ExternalAlbum = a.Text("albumName"), DurationMs = a.Number("durationInMillis"), ExternalUrl = a.Text("url"), ArtUrl = a.Child("artwork").Text("url").Replace("{w}", "300").Replace("{h}", "300") });
             }
+            InputValidation.Items(items);
             var next = page.Text("next"); if (next.Length == 0) break;
-            if (!visited.Add(next) || items.Count > 20000) throw new InvalidDataException("Playlist pagination limit reached.");
-            page = await api.GetAsync(new Uri(new Uri("https://api.music.apple.com"), next).AbsoluteUri, credentials.AppleDeveloperToken, cancellationToken);
+            if (!visited.Add(next) || items.Count >= 20000 || visited.Count >= 400) throw new InvalidDataException("Playlist pagination limit reached.");
+            var nextUrl = new Uri(new Uri("https://api.music.apple.com"), next).AbsoluteUri;
+            if (!ProviderUrls.IsHost(nextUrl, "api.music.apple.com")) throw new InvalidDataException("Unexpected Apple pagination host.");
+            page = await api.GetAsync(nextUrl, credentials.AppleDeveloperToken, cancellationToken);
         }
         return new(playlist.Child("attributes").Text("name", "Apple Music playlist"), "Apple Music", input, items);
     }
@@ -155,10 +171,12 @@ public sealed class SoundCloudImporter(ProviderApi api, IProviderCredentials cre
         foreach (var entry in root.Child("tracks").Array())
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (items.Count >= InputValidation.MaxItems) throw new InvalidDataException("Playlist pagination limit reached.");
             var t = entry;
             if (t.Text("title").Length == 0 && t.Number("id") != 0) t = await api.GetAsync("https://api.soundcloud.com/tracks/" + t.Number("id"), credentials.SoundCloudAccessToken, cancellationToken, "OAuth");
             items.Add(new() { ExternalTitle = t.Text("title"), ExternalArtist = t.Child("user").Text("username"), DurationMs = t.Number("duration"), ExternalUrl = t.Text("permalink_url"), ArtUrl = t.Text("artwork_url") });
         }
+        InputValidation.Items(items);
         return new(root.Text("title", "SoundCloud playlist"), "SoundCloud", input, items, "Metadata only; no SoundCloud streams are downloaded.");
     }
 }
